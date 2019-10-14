@@ -17,6 +17,8 @@ kind: ConfigMap
 metadata:
   name: config-defaults
   namespace: kf
+  labels:
+    app.kubernetes.io/name: kf
 data:
   _example: |
     ################################
