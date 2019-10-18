@@ -40,6 +40,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	appsv1listers "k8s.io/client-go/listers/apps/v1"
 	v1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"knative.dev/pkg/controller"
@@ -65,6 +66,7 @@ type Reconciler struct {
 	routeClaimLister      kflisters.RouteClaimLister
 	serviceBindingLister  servicecataloglisters.ServiceBindingLister
 	serviceInstanceLister servicecataloglisters.ServiceInstanceLister
+	deploymentLister      appsv1listers.DeploymentLister
 }
 
 // Check that our Reconciler implements controller.Reconciler

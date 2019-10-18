@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
+	deploymentinformer "knative.dev/pkg/injection/informers/kubeinformers/appsv1/deployment"
 	secretinformer "knative.dev/pkg/injection/informers/kubeinformers/corev1/secret"
 )
 
@@ -50,6 +51,7 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 	serviceBindingInformer := servicebindinginformer.Get(ctx)
 	serviceInstanceInformer := serviceinstanceinformer.Get(ctx)
 	secretInformer := secretinformer.Get(ctx)
+	deploymentInformer := deploymentinformer.Get(ctx)
 
 	serviceCatalogClient := servicecatalogclient.Get(ctx)
 
@@ -67,6 +69,7 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 		routeClaimLister:      routeClaimInformer.Lister(),
 		serviceBindingLister:  serviceBindingInformer.Lister(),
 		serviceInstanceLister: serviceInstanceInformer.Lister(),
+		deploymentLister:      deploymentInformer.Lister(),
 	}
 
 	impl := controller.NewImpl(c, logger, "Apps")
@@ -87,6 +90,11 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 	})
 
 	serviceBindingInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("App")),
+		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
+	})
+
+	deploymentInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("App")),
 		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
 	})

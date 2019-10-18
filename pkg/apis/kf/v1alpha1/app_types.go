@@ -16,6 +16,7 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/kf/third_party/knative-serving/pkg/apis/autoscaling"
@@ -138,6 +139,19 @@ type AppSpecServiceBinding struct {
 	// If unspecified it will default to the service name
 	// +optional
 	BindingName string `json:"bindingName,omitempty"`
+}
+
+// DeploymentReplicas returns the value that deployment replicas should be set
+// to.
+func (instances *AppSpecInstances) DeploymentReplicas() (int, error) {
+	switch {
+	case instances.Stopped:
+		return 0, nil
+	case instances.Exactly != nil:
+		return *instances.Exactly, nil
+	default:
+		return 0, errors.New("Exact scale required for deployment based setup")
+	}
 }
 
 // MinAnnotationValue returns the value autoscaling.knative.dev/minScale should
