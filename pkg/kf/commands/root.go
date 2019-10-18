@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/google/kf/pkg/kf/commands/builds"
 	"github.com/google/kf/pkg/kf/commands/completion"
 	"github.com/google/kf/pkg/kf/commands/config"
 	"github.com/google/kf/pkg/kf/commands/doctor"
@@ -165,9 +166,11 @@ func NewKfCommand() *cobra.Command {
 		{
 			Name: "Builds",
 			Commands: []*cobra.Command{
-				InjectBuilds(p),
+				// InjectBuilds(p),
 				InjectBuildLogs(p),
 				InjectBuild(p),
+
+				builds.NewListBuildsCommand2(p, config.GetDynamicClient(p)),
 			},
 		},
 		{

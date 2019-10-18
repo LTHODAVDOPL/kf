@@ -26,3 +26,13 @@ import (
 func NewGetBuildCommand(p *config.KfParams, client dynamic.Interface) *cobra.Command {
 	return genericcli.NewDescribeCommand(sources.NewResourceInfo(), p, client)
 }
+
+func NewListBuildsCommand2(p *config.KfParams, client dynamic.Interface) *cobra.Command {
+	table := genericcli.Table{
+		genericcli.Column{Name: "Date", JSONPath: `.metadata.creationTimestamp`},
+		genericcli.Column{Name: "Succeeded", JSONPath: `.status.conditions[?(@.type=="Succeeded")].status`},
+		genericcli.Column{Name: "Image", JSONPath: `.status.image`},
+	}
+
+	return genericcli.NewListCommand(sources.NewResourceInfo(), p, client, table)
+}
