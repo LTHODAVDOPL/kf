@@ -61,6 +61,14 @@ type SingleConditionManager interface {
 	// reconciliation process. Context should contain the action that failed.
 	MarkReconciliationError(context string, err error) error
 
+	// MarkReconcilationPending marks the source as still requiring reconciliation
+	// This is a useful state for when ObservedGeneration doesn't match Generation
+	// but progress should still be shown to the user.
+	MarkReconciliationPending()
+
+	// MarkSuccess marks the source as being successfully reconciled.
+	MarkSuccess()
+
 	// IsPending returns whether the condition's state is final or in progress.
 	IsPending() bool
 }
@@ -111,6 +119,19 @@ func (ci *conditionImpl) MarkReconciliationError(action string, err error) error
 
 	return errors.New(msg)
 }
+
+// MarkReconcilationPending marks the source as still requiring reconciliation
+// This is a useful state for when ObservedGeneration doesn't match Generation
+// but progress should still be shown to the user.
+func (ci *conditionImpl) MarkReconciliationPending() {
+	ci.manager.MarkUnknown(ci.destination, "Reconciling", "The resource is still reconciling.")
+}
+
+// MarkSuccess marks the source as being successfully reconciled.
+func (ci *conditionImpl) MarkSuccess() {
+	ci.manager.MarkTrue(ci.destination)
+}
+
 
 // IsPending returns whether the condition's state is final or in progress.
 func (ci *conditionImpl) IsPending() bool {

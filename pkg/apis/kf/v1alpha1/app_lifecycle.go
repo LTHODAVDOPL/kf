@@ -110,13 +110,6 @@ func (status *AppStatus) PropagateSourceStatus(source *Source) {
 	}
 }
 
-func (status *AppStatus) PropagageDeploymentServiceStatus(service *appsv1.Deployment) {
-	if service == nil {
-		return
-	}
-
-}
-
 // PropagateKnativeServiceStatus updates the Knative service status to reflect
 // the underlying service.
 func (status *AppStatus) PropagateKnativeServiceStatus(service *serving.Service) {
