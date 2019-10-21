@@ -21,6 +21,8 @@ import (
 	"github.com/google/kf/pkg/kf/testutil"
 	serving "github.com/google/kf/third_party/knative-serving/pkg/apis/serving/v1alpha1"
 	servicecatalogv1beta1 "github.com/poy/service-catalog/pkg/apis/servicecatalog/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/apis"
@@ -136,7 +138,7 @@ func initTestAppStatus(t *testing.T) *AppStatus {
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionSpaceReady, t)
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionSourceReady, t)
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionEnvVarSecretReady, t)
-	apitesting.CheckConditionOngoing(status.duck(), AppConditionKnativeServiceReady, t)
+	apitesting.CheckConditionOngoing(status.duck(), AppConditionDeploymentReady, t)
 
 	return status
 }
@@ -259,6 +261,23 @@ func pendingKnativeService() *serving.Service {
 	}
 }
 
+func happyDeployment() *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "some-service-name",
+		},
+		Status: appsv1.DeploymentStatus{},
+	}
+}
+
+func happyAutoscaler() *autoscalingv1.HorizontalPodAutoscaler {
+	return &autoscalingv1.HorizontalPodAutoscaler{}
+}
+
+func happyService() *corev1.Service {
+	return &corev1.Service{}
+}
+
 func TestAppHappyPath(t *testing.T) {
 	status := initTestAppStatus(t)
 
@@ -266,7 +285,7 @@ func TestAppHappyPath(t *testing.T) {
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionSpaceReady, t)
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionSourceReady, t)
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionEnvVarSecretReady, t)
-	apitesting.CheckConditionOngoing(status.duck(), AppConditionKnativeServiceReady, t)
+	apitesting.CheckConditionOngoing(status.duck(), AppConditionDeploymentReady, t)
 
 	// space is healthy
 	status.MarkSpaceHealthy()
@@ -299,7 +318,7 @@ func TestAppHappyPath(t *testing.T) {
 	status.PropagateKnativeServiceStatus(pendingKnativeService())
 
 	apitesting.CheckConditionOngoing(status.duck(), AppConditionReady, t)
-	apitesting.CheckConditionOngoing(status.duck(), AppConditionKnativeServiceReady, t)
+	apitesting.CheckConditionOngoing(status.duck(), AppConditionDeploymentReady, t)
 
 	testutil.AssertEqual(t, "LatestReadyRevisionName", "", status.LatestReadyRevisionName)
 	testutil.AssertEqual(t, "LatestCreatedRevisionName", "", status.LatestCreatedRevisionName)
@@ -309,7 +328,7 @@ func TestAppHappyPath(t *testing.T) {
 	status.PropagateKnativeServiceStatus(happyKnativeService())
 
 	apitesting.CheckConditionSucceeded(status.duck(), AppConditionReady, t)
-	apitesting.CheckConditionSucceeded(status.duck(), AppConditionKnativeServiceReady, t)
+	apitesting.CheckConditionSucceeded(status.duck(), AppConditionDeploymentReady, t)
 	testutil.AssertEqual(t, "LatestReadyRevisionName", "some-ready-revision-name", status.LatestReadyRevisionName)
 	testutil.AssertEqual(t, "LatestCreatedRevisionName", "some-created-revision-name", status.LatestCreatedRevisionName)
 	testutil.AssertEqual(t, "RouteHost", "example.com", status.RouteStatusFields.URL.Host)
@@ -328,14 +347,18 @@ func TestAppStatus_lifecycle(t *testing.T) {
 				status.MarkSpaceHealthy()
 				status.PropagateSourceStatus(happySource())
 				status.PropagateEnvVarSecretStatus(envVarSecret())
-				status.PropagateKnativeServiceStatus(happyKnativeService())
+				status.PropagateDeploymentStatus(happyDeployment())
+				status.PropagateAutoscalerStatus(happyAutoscaler())
+				status.PropagateServiceStatus(happyService())
 			},
 			ExpectSucceeded: []apis.ConditionType{
 				AppConditionReady,
 				AppConditionSpaceReady,
 				AppConditionSourceReady,
 				AppConditionEnvVarSecretReady,
-				AppConditionKnativeServiceReady,
+				AppConditionDeploymentReady,
+				AppConditionAutoscalerReady,
+				AppConditionServiceReady,
 			},
 		},
 		"stopped app": {

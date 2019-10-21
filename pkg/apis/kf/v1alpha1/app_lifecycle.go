@@ -17,8 +17,12 @@ package v1alpha1
 import (
 	"fmt"
 
+	apisserving "github.com/google/kf/third_party/knative-serving/pkg/apis/serving"
 	serving "github.com/google/kf/third_party/knative-serving/pkg/apis/serving/v1alpha1"
 	servicecatalogv1beta1 "github.com/poy/service-catalog/pkg/apis/servicecatalog/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"knative.dev/pkg/apis"
@@ -37,8 +41,12 @@ const (
 	AppConditionReady = apis.ConditionReady
 	// AppConditionSourceReady is set when the build is ready.
 	AppConditionSourceReady apis.ConditionType = "SourceReady"
-	// AppConditionKnativeServiceReady is set when service is ready.
-	AppConditionKnativeServiceReady apis.ConditionType = "KnativeServiceReady"
+	// AppConditionDeploymentReady is set when the web service is ready.
+	AppConditionDeploymentReady apis.ConditionType = "DeploymentReady"
+	// AppConditionAutoscalerReady is set when the autoscaler is ready.
+	AppConditionAutoscalerReady apis.ConditionType = "AutoscalerReady"
+	// AppConditionServiceReady is set when the service is ready.
+	AppConditionServiceReady apis.ConditionType = "ServiceReady"
 	// AppConditionSpaceReady is used to indicate when the space has an error that
 	// causes apps to not reconcile correctly.
 	AppConditionSpaceReady apis.ConditionType = "SpaceReady"
@@ -53,9 +61,11 @@ const (
 func (status *AppStatus) manage() apis.ConditionManager {
 	return apis.NewLivingConditionSet(
 		AppConditionSourceReady,
-		AppConditionKnativeServiceReady,
+		AppConditionDeploymentReady,
 		AppConditionSpaceReady,
 		AppConditionEnvVarSecretReady,
+		AppConditionServiceReady,
+		AppConditionAutoscalerReady,
 	).Manage(status)
 }
 
@@ -79,9 +89,19 @@ func (status *AppStatus) SourceCondition() SingleConditionManager {
 	return NewSingleConditionManager(status.manage(), AppConditionSourceReady, "Source")
 }
 
-// KnativeServiceCondition gets a manager for the state of the Knative Service.
-func (status *AppStatus) KnativeServiceCondition() SingleConditionManager {
-	return NewSingleConditionManager(status.manage(), AppConditionKnativeServiceReady, "Knative Service")
+// DeploymentCondition gets a manager for the state of the Deployment.
+func (status *AppStatus) DeploymentCondition() SingleConditionManager {
+	return NewSingleConditionManager(status.manage(), AppConditionDeploymentReady, "Deployment")
+}
+
+// ServiceCondition gets a manager for the state of the Service.
+func (status *AppStatus) ServiceCondition() SingleConditionManager {
+	return NewSingleConditionManager(status.manage(), AppConditionDeploymentReady, "Service")
+}
+
+// AutoscalerCondition gets a manager for the state of the Autoscaler.
+func (status *AppStatus) AutoscalerCondition() SingleConditionManager {
+	return NewSingleConditionManager(status.manage(), AppConditionAutoscalerReady, "Autoscaler")
 }
 
 // RouteCondition gets a manager for the state of the kf Route.
@@ -119,13 +139,13 @@ func (status *AppStatus) PropagateKnativeServiceStatus(service *serving.Service)
 	}
 
 	if service.Status.ObservedGeneration != service.Generation {
-		status.manage().MarkUnknown(AppConditionKnativeServiceReady, "GenerationMismatch", "the Knative service needs to be synchronized")
+		status.manage().MarkUnknown(AppConditionDeploymentReady, "GenerationMismatch", "the Knative service needs to be synchronized")
 		return
 	}
 
 	cond := service.Status.GetCondition(apis.ConditionReady)
 
-	if PropagateCondition(status.manage(), AppConditionKnativeServiceReady, cond) {
+	if PropagateCondition(status.manage(), AppConditionDeploymentReady, cond) {
 		status.ConfigurationStatusFields = service.Status.ConfigurationStatusFields
 		status.RouteStatusFields = service.Status.RouteStatusFields
 	}
@@ -228,4 +248,40 @@ func (status *AppStatus) MarkSpaceUnhealthy(reason, message string) {
 
 func (status *AppStatus) duck() *duckv1beta1.Status {
 	return &status.Status
+}
+
+func (status *AppStatus) PropagateServiceStatus(service *corev1.Service) {
+	// Services don't have conditions to indicate readiness.
+
+	status.URL = &apis.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s.%s.svc.cluster.local", service.Name, service.Namespace),
+	}
+
+	status.ServiceCondition().MarkSuccess()
+}
+
+func (status *AppStatus) PropagateAutoscalerStatus(autoscaler *autoscalingv1.HorizontalPodAutoscaler) {
+	if autoscaler.Status.ObservedGeneration == nil || *autoscaler.Status.ObservedGeneration != autoscaler.Generation {
+		status.AutoscalerCondition().MarkReconciliationPending()
+		return
+	}
+
+	status.AutoscalerCondition().MarkSuccess()
+}
+
+func (status *AppStatus) PropagateDeploymentStatus(deployment *appsv1.Deployment) {
+	if deployment.Status.ObservedGeneration != deployment.Generation {
+		status.DeploymentCondition().MarkReconciliationPending()
+		return
+	}
+
+	ds := apisserving.TransformDeploymentStatus(&deployment.Status)
+
+	cond := ds.GetCondition(apisserving.DeploymentConditionReady)
+	if cond == nil {
+		return
+	}
+
+	PropagateCondition(status.manage(), AppConditionDeploymentReady, cond)
 }

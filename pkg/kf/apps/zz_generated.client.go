@@ -81,7 +81,7 @@ func (*ResourceInfo) FriendlyName() string {
 var (
 	ConditionReady                = apis.ConditionType(v1alpha1.AppConditionReady)
 	ConditionServiceBindingsReady = apis.ConditionType(v1alpha1.AppConditionServiceBindingsReady)
-	ConditionKnativeServiceReady  = apis.ConditionType(v1alpha1.AppConditionKnativeServiceReady)
+	ConditionKnativeServiceReady  = apis.ConditionType(v1alpha1.AppConditionDeploymentReady)
 	ConditionRoutesReady          = apis.ConditionType(v1alpha1.AppConditionRouteReady)
 )
 
@@ -443,7 +443,7 @@ func (core *coreClient) WaitForConditionServiceBindingsReadyTrue(ctx context.Con
 	return core.WaitForE(ctx, namespace, name, interval, ConditionServiceBindingsReadyTrue)
 }
 
-// ConditionKnativeServiceReadyTrue is a ConditionFuncE that waits for Condition{KnativeServiceReady v1alpha1.AppConditionKnativeServiceReady } to
+// ConditionKnativeServiceReadyTrue is a ConditionFuncE that waits for Condition{KnativeServiceReady v1alpha1.AppConditionDeploymentReady } to
 // become true and fails with an error if the condition becomes false.
 func ConditionKnativeServiceReadyTrue(obj *v1alpha1.App, err error) (bool, error) {
 	return checkConditionTrue(obj, err, ConditionKnativeServiceReady)

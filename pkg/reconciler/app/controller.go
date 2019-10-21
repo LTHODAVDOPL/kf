@@ -34,6 +34,7 @@ import (
 	"knative.dev/pkg/controller"
 	deploymentinformer "knative.dev/pkg/injection/informers/kubeinformers/appsv1/deployment"
 	secretinformer "knative.dev/pkg/injection/informers/kubeinformers/corev1/secret"
+	serviceinformer "knative.dev/pkg/injection/informers/kubeinformers/corev1/service"
 )
 
 // NewController creates a new controller capable of reconciling Kf Routes.
@@ -52,6 +53,7 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 	serviceInstanceInformer := serviceinstanceinformer.Get(ctx)
 	secretInformer := secretinformer.Get(ctx)
 	deploymentInformer := deploymentinformer.Get(ctx)
+	serviceInformer := serviceinformer.Get(ctx)
 
 	serviceCatalogClient := servicecatalogclient.Get(ctx)
 
@@ -70,6 +72,7 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 		serviceBindingLister:  serviceBindingInformer.Lister(),
 		serviceInstanceLister: serviceInstanceInformer.Lister(),
 		deploymentLister:      deploymentInformer.Lister(),
+		serviceLister:         serviceinformer.Lister(),
 	}
 
 	impl := controller.NewImpl(c, logger, "Apps")
@@ -95,6 +98,11 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 	})
 
 	deploymentInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("App")),
+		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
+	})
+
+	serviceInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("App")),
 		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
 	})

@@ -281,54 +281,60 @@ func (r *Reconciler) ApplyChanges(ctx context.Context, app *v1alpha1.App) error 
 		app.Status.PropagateEnvVarSecretStatus(actual)
 	}
 
-	// reconcile serving
-	{
-		logger.Debug("reconciling Knative Serving")
-		condition := app.Status.KnativeServiceCondition()
-		desired, err := resources.MakeKnativeService(app, space)
-		if err != nil {
-			return condition.MarkTemplateError(err)
-		}
+	// reconcile service
 
-		actual, err := r.knativeServiceLister.
-			Services(desired.GetNamespace()).
-			Get(desired.Name)
-		if apierrs.IsNotFound(err) {
-			if !app.Spec.Instances.Stopped {
-				// Knative Service doesn't exist, make one.
-				actual, err = r.ServingClientSet.
-					ServingV1alpha1().
-					Services(desired.GetNamespace()).
-					Create(desired)
-				if err != nil {
-					return condition.MarkReconciliationError("creating", err)
-				}
-			}
-		} else if err != nil {
-			return condition.MarkReconciliationError("getting latest", err)
-		} else if !metav1.IsControlledBy(actual, app) {
-			return condition.MarkChildNotOwned(desired.Name)
-		} else if app.Spec.Instances.Stopped {
-			// Found service for stopped app. We delete the service otherwise
-			// knative will bring back a single pod, even if when we set
-			// scaling to 0:
-			// TODO: Reevaluate once
-			// https://github.com/google/kf/third_party/knative-serving//issues/4098 is resolved.
-			if err := r.ServingClientSet.
-				ServingV1alpha1().
-				Services(desired.Namespace).
-				Delete(desired.Name, &metav1.DeleteOptions{}); err != nil {
-				return condition.MarkReconciliationError(
-					"stopping (via deleting service) existing",
-					err,
-				)
-			}
-		} else if actual, err = r.reconcileKnativeService(desired, actual); err != nil {
-			return condition.MarkReconciliationError("updating existing", err)
-		}
+	// reconcile deployment
 
-		app.Status.PropagateKnativeServiceStatus(actual)
-	}
+	// reconcile HPA
+
+	// // reconcile serving
+	// {
+	// 	logger.Debug("reconciling Knative Serving")
+	// 	condition := app.Status.KnativeServiceCondition()
+	// 	desired, err := resources.MakeKnativeService(app, space)
+	// 	if err != nil {
+	// 		return condition.MarkTemplateError(err)
+	// 	}
+	//
+	// 	actual, err := r.knativeServiceLister.
+	// 		Services(desired.GetNamespace()).
+	// 		Get(desired.Name)
+	// 	if apierrs.IsNotFound(err) {
+	// 		if !app.Spec.Instances.Stopped {
+	// 			// Knative Service doesn't exist, make one.
+	// 			actual, err = r.ServingClientSet.
+	// 				ServingV1alpha1().
+	// 				Services(desired.GetNamespace()).
+	// 				Create(desired)
+	// 			if err != nil {
+	// 				return condition.MarkReconciliationError("creating", err)
+	// 			}
+	// 		}
+	// 	} else if err != nil {
+	// 		return condition.MarkReconciliationError("getting latest", err)
+	// 	} else if !metav1.IsControlledBy(actual, app) {
+	// 		return condition.MarkChildNotOwned(desired.Name)
+	// 	} else if app.Spec.Instances.Stopped {
+	// 		// Found service for stopped app. We delete the service otherwise
+	// 		// knative will bring back a single pod, even if when we set
+	// 		// scaling to 0:
+	// 		// TODO: Reevaluate once
+	// 		// https://github.com/google/kf/third_party/knative-serving//issues/4098 is resolved.
+	// 		if err := r.ServingClientSet.
+	// 			ServingV1alpha1().
+	// 			Services(desired.Namespace).
+	// 			Delete(desired.Name, &metav1.DeleteOptions{}); err != nil {
+	// 			return condition.MarkReconciliationError(
+	// 				"stopping (via deleting service) existing",
+	// 				err,
+	// 			)
+	// 		}
+	// 	} else if actual, err = r.reconcileKnativeService(desired, actual); err != nil {
+	// 		return condition.MarkReconciliationError("updating existing", err)
+	// 	}
+	//
+	// 	app.Status.PropagateKnativeServiceStatus(actual)
+	// }
 
 	// Routes and RouteClaims
 	desiredRoutes, desiredRouteClaims, err := resources.MakeRoutes(app, space)
