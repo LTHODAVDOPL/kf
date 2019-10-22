@@ -96,7 +96,7 @@ func (status *AppStatus) DeploymentCondition() SingleConditionManager {
 
 // ServiceCondition gets a manager for the state of the Service.
 func (status *AppStatus) ServiceCondition() SingleConditionManager {
-	return NewSingleConditionManager(status.manage(), AppConditionDeploymentReady, "Service")
+	return NewSingleConditionManager(status.manage(), AppConditionServiceReady, "Service")
 }
 
 // AutoscalerCondition gets a manager for the state of the Autoscaler.

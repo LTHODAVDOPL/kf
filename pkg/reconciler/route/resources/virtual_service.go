@@ -146,11 +146,19 @@ func buildHTTPRoute(hostDomain, namespace, urlPath string, appNames []string) ([
 	}
 
 	var httpRoutes []networking.HTTPRoute
+	// http://test.joseph.svc.cluster.local
 
 	for _, appName := range appNames {
 		httpRoutes = append(httpRoutes, networking.HTTPRoute{
 			Match: pathMatchers,
-			Route: buildRouteDestination(),
+			Route: []networking.HTTPRouteDestination{
+				{
+					Destination: networking.Destination{
+						Host: network.GetServiceHostname(appName, namespace),
+					},
+					Weight: 100,
+				},
+			},
 			Rewrite: &networking.HTTPRewrite{
 				Authority: network.GetServiceHostname(appName, namespace),
 			},

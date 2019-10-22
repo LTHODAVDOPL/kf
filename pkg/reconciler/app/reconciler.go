@@ -606,7 +606,9 @@ func (r *Reconciler) reconcileServiceBinding(desired, actual *servicecatalogv1be
 func (r *Reconciler) reconcileService(desired, actual *corev1.Service) (*corev1.Service, error) {
 	// Check for differences, if none we don't need to reconcile.
 	semanticEqual := equality.Semantic.DeepEqual(desired.ObjectMeta.Labels, actual.ObjectMeta.Labels)
-	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec, actual.Spec)
+	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec.Ports, actual.Spec.Ports)
+	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec.Selector, actual.Spec.Selector)
+	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec.Type, actual.Spec.Type)
 
 	if semanticEqual {
 		return actual, nil
@@ -621,7 +623,10 @@ func (r *Reconciler) reconcileService(desired, actual *corev1.Service) (*corev1.
 
 	// Preserve the rest of the object (e.g. ObjectMeta except for labels).
 	existing.ObjectMeta.Labels = desired.ObjectMeta.Labels
-	existing.Spec = desired.Spec
+	existing.Spec.Ports = desired.Spec.Ports
+	existing.Spec.Selector = desired.Spec.Selector
+	existing.Spec.Type = desired.Spec.Type
+
 	return r.KubeClientSet.CoreV1().Services(existing.Namespace).Update(existing)
 }
 

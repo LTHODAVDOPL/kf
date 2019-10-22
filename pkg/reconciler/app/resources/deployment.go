@@ -104,6 +104,7 @@ func makePodSpec(app *v1alpha1.App, space *v1alpha1.Space) corev1.PodSpec {
 	userPort := getUserPort(app)
 	userContainer := &spec.Containers[0]
 	userContainer.Name = UserContainerName
+	userContainer.Image = app.Status.Image
 	userContainer.Ports = buildContainerPorts(userPort)
 
 	// Execution environment variables come before others because they're built
