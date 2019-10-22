@@ -15,7 +15,11 @@
 package resources
 
 import (
+	"github.com/google/kf/pkg/apis/kf/v1alpha1"
 	kfv1alpha1 "github.com/google/kf/pkg/apis/kf/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"knative.dev/pkg/kmeta"
 )
 
@@ -29,7 +33,7 @@ func ServiceName(app *kfv1alpha1.App) string {
 func MakeService(app *kfv1alpha1.App) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: app.Name,
+			Name:      app.Name,
 			Namespace: app.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*kmeta.NewControllerRef(app),
@@ -43,9 +47,9 @@ func MakeService(app *kfv1alpha1.App) *corev1.Service {
 				Port:     80,
 				// This one is matching the public one, since this is the
 				// port queue-proxy listens on.
-				TargetPort: getUserPort(app),
+				TargetPort: intstr.FromInt(int(getUserPort(app))),
 			}},
-			Selector: app.ComponentLabels("app-server"),
+			Selector: PodLabels(app),
 		},
 	}
 }

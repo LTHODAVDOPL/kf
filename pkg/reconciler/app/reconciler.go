@@ -35,6 +35,8 @@ import (
 	servinglisters "github.com/google/kf/third_party/knative-serving/pkg/client/listers/serving/v1alpha1"
 	servicecatalogv1beta1 "github.com/poy/service-catalog/pkg/apis/servicecatalog/v1beta1"
 	"go.uber.org/zap"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -67,6 +69,7 @@ type Reconciler struct {
 	serviceBindingLister  servicecataloglisters.ServiceBindingLister
 	serviceInstanceLister servicecataloglisters.ServiceInstanceLister
 	deploymentLister      appsv1listers.DeploymentLister
+	serviceLister         v1listers.ServiceLister
 }
 
 // Check that our Reconciler implements controller.Reconciler
@@ -282,10 +285,61 @@ func (r *Reconciler) ApplyChanges(ctx context.Context, app *v1alpha1.App) error 
 	}
 
 	// reconcile service
+	{
+		logger.Debug("reconciling service")
+		condition := app.Status.ServiceCondition()
+		desired := resources.MakeService(app)
+
+		actual, err := r.serviceLister.Services(desired.GetNamespace()).Get(desired.Name)
+		if apierrs.IsNotFound(err) {
+			actual, err = r.KubeClientSet.CoreV1().Services(desired.Namespace).Create(desired)
+			if err != nil {
+				return condition.MarkReconciliationError("creating", err)
+			}
+		} else if err != nil {
+			return condition.MarkReconciliationError("getting latest", err)
+		} else if !metav1.IsControlledBy(actual, app) {
+			return condition.MarkChildNotOwned(desired.Name)
+		} else if actual, err = r.reconcileService(desired, actual); err != nil {
+			return condition.MarkReconciliationError("updating existing", err)
+		}
+
+		app.Status.PropagateServiceStatus(actual)
+	}
 
 	// reconcile deployment
+	{
+		logger.Debug("reconciling deployment")
+		condition := app.Status.DeploymentCondition()
+		desired, err := resources.MakeDeployment(app, space)
+		if err != nil {
+			return condition.MarkTemplateError(err)
+		}
+
+		// TODO POPULATE ME
+
+		actual, err := r.deploymentLister.Deployments(desired.GetNamespace()).Get(desired.Name)
+		if apierrs.IsNotFound(err) {
+			actual, err = r.KubeClientSet.AppsV1().Deployments(desired.Namespace).Create(desired)
+			if err != nil {
+				return condition.MarkReconciliationError("creating", err)
+			}
+		} else if err != nil {
+			return condition.MarkReconciliationError("getting latest", err)
+		} else if !metav1.IsControlledBy(actual, app) {
+			return condition.MarkChildNotOwned(desired.Name)
+		} else if actual, err = r.reconcileDeployment(desired, actual); err != nil {
+			return condition.MarkReconciliationError("updating existing", err)
+		}
+
+		app.Status.PropagateDeploymentStatus(actual)
+	}
 
 	// reconcile HPA
+
+	{
+
+	}
 
 	// // reconcile serving
 	// {
@@ -547,6 +601,50 @@ func (r *Reconciler) reconcileServiceBinding(desired, actual *servicecatalogv1be
 		ServicecatalogV1beta1().
 		ServiceBindings(existing.Namespace).
 		Update(existing)
+}
+
+func (r *Reconciler) reconcileService(desired, actual *corev1.Service) (*corev1.Service, error) {
+	// Check for differences, if none we don't need to reconcile.
+	semanticEqual := equality.Semantic.DeepEqual(desired.ObjectMeta.Labels, actual.ObjectMeta.Labels)
+	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec, actual.Spec)
+
+	if semanticEqual {
+		return actual, nil
+	}
+
+	if _, err := kmp.SafeDiff(desired.Spec, actual.Spec); err != nil {
+		return nil, fmt.Errorf("failed to diff binding: %v", err)
+	}
+
+	// Don't modify the informers copy.
+	existing := actual.DeepCopy()
+
+	// Preserve the rest of the object (e.g. ObjectMeta except for labels).
+	existing.ObjectMeta.Labels = desired.ObjectMeta.Labels
+	existing.Spec = desired.Spec
+	return r.KubeClientSet.CoreV1().Services(existing.Namespace).Update(existing)
+}
+
+func (r *Reconciler) reconcileDeployment(desired, actual *appsv1.Deployment) (*appsv1.Deployment, error) {
+	// Check for differences, if none we don't need to reconcile.
+	semanticEqual := equality.Semantic.DeepEqual(desired.ObjectMeta.Labels, actual.ObjectMeta.Labels)
+	semanticEqual = semanticEqual && equality.Semantic.DeepEqual(desired.Spec, actual.Spec)
+
+	if semanticEqual {
+		return actual, nil
+	}
+
+	if _, err := kmp.SafeDiff(desired.Spec, actual.Spec); err != nil {
+		return nil, fmt.Errorf("failed to diff binding: %v", err)
+	}
+
+	// Don't modify the informers copy.
+	existing := actual.DeepCopy()
+
+	// Preserve the rest of the object (e.g. ObjectMeta except for labels).
+	existing.ObjectMeta.Labels = desired.ObjectMeta.Labels
+	existing.Spec = desired.Spec
+	return r.KubeClientSet.AppsV1().Deployments(existing.Namespace).Update(existing)
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, desired *v1alpha1.App) (*v1alpha1.App, error) {

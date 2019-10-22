@@ -72,7 +72,7 @@ func NewController(ctx context.Context, cmw configmap.Watcher) *controller.Impl 
 		serviceBindingLister:  serviceBindingInformer.Lister(),
 		serviceInstanceLister: serviceInstanceInformer.Lister(),
 		deploymentLister:      deploymentInformer.Lister(),
-		serviceLister:         serviceinformer.Lister(),
+		serviceLister:         serviceInformer.Lister(),
 	}
 
 	impl := controller.NewImpl(c, logger, "Apps")
